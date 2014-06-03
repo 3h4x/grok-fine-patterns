@@ -1,0 +1,98 @@
+filter {
+  grok { 
+    match => { "message" => "%{CISCOTIMESTAMP} (?<service>[a-z]+)(\[\d+\])?: %{GREEDYDATA:msg}" }
+  }
+  mutate {
+    replace => [ "message", "%{msg}" ]
+  }
+
+# PF
+  if [service] =~ /^pf$/ {
+    multiline {
+      pattern => "^\s+|^\t\s+"
+      what => "previous"
+#      negate => true
+    }
+    mutate {
+      add_tag => [ "packetfilter" ]
+    }
+    if "multiline" in [tags] {
+      grok {
+        match => { "message" => "%{DATA} rule (?<pf_rule>\d+\/\d+)\(match\): %{DATA:pf_action} in on %{DATA:pf_interface}: %{GREEDYDATA:pf_debug}(\n\s*?)%{IP:src_ip}\.%{INT:src_port} > %{IP:dst_ip}\.%{INT:dst_port}: %{GREEDYDATA:pf_smieci}" }
+      } 
+      mutate {
+        remove_field => [ "message" ]
+      }
+    } else {
+      grok {
+        match => { "message" => "%{DATA} rule (?<pf_rule>\d+\/\d+)\(match\): %{DATA:pf_action} in on %{DATA:pf_interface}: %{GREEDYDATA:pf_debug} %{IP:src_ip}\.%{INT:src_port} > %{IP:dst_ip}\.%{INT:dst_port}: %{GREEDYDATA:pf_smieci}" }
+      }
+      mutate {
+        remove_field => [ "message" ]
+      }
+    }
+  }
+
+# Snort
+  if [service] =~ /^snort$/ {
+    grok { 
+      match => { "message" => "%{SYSLOG5424SD} (\(%{DATA:snort_rule_mod} \))?(%{DATA:snort_rule}) %{GREEDYDATA:snort_msg_v} \[Classification: %{DATA:snort_classification}\] \[Priority: %{INT:snort_priority}\] {%{WORD:protocol}} %{IP:src_ip}:%{INT:src_port} -> %{IP:dst_ip}:%{INT:dst_port}" }
+      add_tag => [ "snort" ]
+      add_field => [ "Priority", "%{snort_priority}" ]
+      add_field => [ "Classification", "%{snort_classification}" ]
+    }
+  }
+  if [service] =~ /^php$/ {
+    if [message] =~ /^snort_check_cron_misc.inc: [Snort] %{GREEDYDATA}$/ { drop {} }
+  }
+  
+  if [service] =~ /^apinger$/ {
+    if [message] =~ /^ALARM: / {
+      grok { 
+        match => { "message" => "ALARM: %{WORD:isp}\(%{IP:isp_ip}\) *** down ***" }
+        add_field => [ "status", "down" ]
+      }
+    }
+    if [message] =~ /^alarm canceled/ {
+      grok {
+        match => { "message" => "alarm canceled:  %{WORD:isp}\(%{IP:isp_ip}\) *** down ***" }
+        add_field => [ "status", "up" ]
+      }
+    }
+  }
+
+  if [service] =~ /^sshlockout$/ {
+    if [message] =~ /^Locking out / {
+      grok { match => { "message" => "Locking out %{IP:ip_locked} after %{INT} invalid attempts" } }
+    }
+  }
+  if [service] =~ /^sshd$/ {
+    if [message] =~ /^error: PAM: authentication error/ {
+      grok { match => { "message" => "error: PAM: authentication error for %{WORD:user} from %{IP:ip_ssh}" } }
+    }
+    if [message] =~ /^Failed password / {
+      grok { match => { "message" => "Failed password for invalid user %{WORD:user} from %{IP:ip_ssh} port 56607 ssh2" } }
+    }
+  }
+  if [service] =~ /^openvpn$/ {
+    if [message] =~ /^user / {
+      grok { match => { "message" => "user '%{WORD:user}' authenticated" } }
+    }
+  }
+  if [service] =~ /^dhcpd/ {
+    if [message] =~ /^DHCPREQUEST|DHCPOFFER/ {
+      grok { match => { "message" => "%{DATA:dhcp_operation} (on|for) %{IP:ip}(\(%{IP}\))? (to|from) %{MAC:mac} \(%{DATA:netbios}\) via %{DATA:interface}" } }
+    }
+    if [message] =~ /^DHCPACK/ {
+      grok { match => { "message" => "%{DATA:dhcp_operation} (to|on) %{IP:ip} \(%{MAC:mac}\) via %{DATA:interface}" } }
+    }
+    if [message] =~ /^DHCPINFORM/ {
+      grok { match => { "message" => "%{DATA:dhcp_operation} from %{IP:ip} via %{DATA:interface}" } }
+    }
+    mutate {
+      remove_field => [ "message" ]
+    }
+  }
+
+  if [message] =~ /^%{msg}$/ { drop {} }
+}
