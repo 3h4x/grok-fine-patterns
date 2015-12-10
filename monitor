@@ -1,0 +1,5 @@
+filter {
+  grok {
+    match => { "message" => "%{SPACE}(data_logger\s+%{WORD:datalogger_connection_status}\s+[\w\W]+\s+%{WORD:datalogger_status})|(agentConfigurationService\s+%{WORD:acs_connection_status}\s+[\w\W]+\s+%{WORD:acs_status})|(PostAuctionLoop_(?<shard>[a-zA-Z0-9_-]+)(.slaveBanker)?\s+%{WORD:monitor_connection_status}\s+[\w\W]+\s+(Sync with MasterBanker: %{WORD:banker_sync_status}|WinLoss pipe: %{DATA:pal_winloss_pipe}, CampaignEvent pipe: %{DATA:pal_campaign_event_pipe}, Banker: %{WORD:banker}))|(%{WORD:router_host}.(?<router>[a-zA-Z0-9-_]+)(.slaveBanker)?\s+%{WORD:monitor_connection_status}\s+[\w\W]+\s+(Connection to PAL: %{WORD:pal_connection_status}, Banker: %{WORD:banker_connection_status}|(Sync with MasterBanker:)?\s+%{WORD:banker_sync_status}))" }
+  }
+}
