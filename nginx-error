@@ -1,0 +1,10 @@
+grok {
+    match => {
+      "message" => "%{DATA} %{DATA} %{DATA} %{DATA} %{DATA} %{DATA:nginx_error_message}, client: %{IP:nginx_error_ip}, server: %{DATA:nginx_error_server}, request: \"%{DATA:nginx_error_request}\"(, upstream: \"%{DATA:nginx_error_upstream}\")?, host: \"%{DATA:nginx_error_host}\"(, referrer: \"%{DATA:nginx_error_referrer}\")?"
+    }
+  }
+
+  mutate {
+    add_tag => ["nginx", "error"]
+  }
+}
